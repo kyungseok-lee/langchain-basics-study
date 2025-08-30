@@ -1,6 +1,9 @@
-.history
-.vscode
-.idea
+.history/
+.vscode/
+.idea/
+.venv/
+venv/
 .DS_Store
+.env
 bin
 build
