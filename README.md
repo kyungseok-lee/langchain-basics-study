@@ -134,6 +134,184 @@ llm = AzureOpenAI(
 
 ### 랭체인 스타일로 프롬프트 작성하는 방법
 
+#### 1. 기본 개념 및 구조
+
+LangChain은 LLM과의 상호작용을 체계화하고 재사용 가능한 컴포넌트로 만드는 프레임워크입니다.
+
+**핵심 구성 요소:**
+- **LLM (Large Language Model)**: 실제 AI 모델 (Ollama, OpenAI, Azure 등)
+- **Prompt**: LLM에게 전달하는 입력 텍스트
+- **Chain**: 여러 컴포넌트를 연결하여 복잡한 워크플로우 구성
+- **Output Parser**: LLM의 응답을 구조화된 형태로 변환
+
+#### 2. 기본 LLM 호출 패턴
+
+```python
+# 1. 모델 초기화
+from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
+
+# 로컬 모델 (Ollama)
+llm_local = ChatOllama(model="gemma3:1b")
+
+# 클라우드 모델 (OpenAI)
+llm_cloud = ChatOpenAI(model="gpt-4o-mini")
+
+# 2. 기본 호출
+response = llm.invoke("너는 누구냐?")
+print(response.content)  # 응답 내용만 추출
+```
+
+#### 3. 프롬프트 템플릿 활용
+
+```python
+from langchain_core.prompts import ChatPromptTemplate
+
+# 프롬프트 템플릿 생성
+prompt = ChatPromptTemplate.from_template(
+    "당신은 {role}입니다. {task}에 대해 {style}로 답변해주세요."
+)
+
+# 템플릿에 값 채우기
+formatted_prompt = prompt.format_messages(
+    role="전문 프로그래머",
+    task="Python 가상환경 설정",
+    style="단계별로 자세하게"
+)
+
+# LLM에 전달
+response = llm.invoke(formatted_prompt)
+```
+
+#### 4. 체인(Chain) 구성
+
+```python
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+
+# 간단한 체인 구성
+chain = (
+    {"question": RunnablePassthrough()} 
+    | prompt 
+    | llm 
+    | StrOutputParser()
+)
+
+# 체인 실행
+result = chain.invoke("Python 가상환경을 설정하는 방법을 알려주세요")
+```
+
+#### 5. 출력 파싱 및 구조화
+
+```python
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.pydantic_v1 import BaseModel, Field
+from typing import List
+
+# 출력 스키마 정의
+class CodeExample(BaseModel):
+    language: str = Field(description="프로그래밍 언어")
+    code: str = Field(description="실제 코드")
+    explanation: str = Field(description="코드 설명")
+
+class CodeResponse(BaseModel):
+    examples: List[CodeExample] = Field(description="코드 예시들")
+    summary: str = Field(description="전체 요약")
+
+# JSON 파서 설정
+parser = JsonOutputParser(pydantic_object=CodeResponse)
+
+# 체인에 파서 추가
+chain_with_parser = (
+    {"question": RunnablePassthrough()} 
+    | prompt 
+    | llm 
+    | parser
+)
+
+# 구조화된 응답 받기
+structured_result = chain_with_parser.invoke("Python 가상환경 설정 코드 예시를 보여주세요")
+```
+
+#### 6. 실무 활용 패턴
+
+**A. 단계별 작업 분해**
+```python
+# 1단계: 요구사항 분석
+analysis_prompt = ChatPromptTemplate.from_template(
+    "다음 요구사항을 분석하여 필요한 단계들을 나열해주세요: {requirement}"
+)
+
+# 2단계: 각 단계별 상세 설명
+detail_prompt = ChatPromptTemplate.from_template(
+    "다음 단계에 대해 자세한 설명과 코드 예시를 제공해주세요: {step}"
+)
+
+# 3단계: 최종 검증
+validation_prompt = ChatPromptTemplate.from_template(
+    "다음 해결방안이 올바른지 검증하고 개선점을 제시해주세요: {solution}"
+)
+```
+
+**B. 에러 처리 및 재시도**
+```python
+from langchain_core.runnables import RunnableRetry
+
+# 재시도 로직이 포함된 체인
+robust_chain = (
+    {"question": RunnablePassthrough()} 
+    | prompt 
+    | llm 
+    | RunnableRetry(
+        stop_after_attempt=3,
+        wait=1
+    )
+    | parser
+)
+```
+
+#### 7. 성능 최적화 팁
+
+1. **배치 처리**: 여러 요청을 한 번에 처리
+2. **캐싱**: 동일한 프롬프트 결과 재사용
+3. **스트리밍**: 긴 응답을 실시간으로 받기
+4. **프롬프트 압축**: 불필요한 정보 제거하여 토큰 절약
+
+#### 8. 디버깅 및 모니터링
+
+```python
+from langchain_core.callbacks import ConsoleCallbackHandler
+
+# 콜백을 통한 실행 과정 모니터링
+with ConsoleCallbackHandler() as handler:
+    result = chain.invoke("테스트 질문", config={"callbacks": [handler]})
+```
+
+#### 9. 환경별 설정 관리
+
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# 환경별 모델 선택
+if os.getenv("ENVIRONMENT") == "production":
+    llm = ChatOpenAI(model="gpt-4", temperature=0.1)
+else:
+    llm = ChatOllama(model="gemma3:1b", temperature=0.7)
+```
+
+#### 10. 체크리스트
+
+- [ ] 적절한 LLM 모델 선택 (로컬 vs 클라우드)
+- [ ] 프롬프트 템플릿 설계 및 검증
+- [ ] 출력 파서 설정 및 테스트
+- [ ] 에러 처리 및 재시도 로직 구현
+- [ ] 성능 모니터링 및 최적화
+- [ ] 환경별 설정 분리
+- [ ] 보안 및 API 키 관리
+
 ### 답변의 형식을 컨트롤하는 방법
 
 ### LCEL을 활용한 랭"체인" 생성하는 방법
