@@ -223,9 +223,9 @@ langchain-basics-study/
 ├── 04_runnable.ipynb      # 체인 구성
 ├── 05_review.ipynb        # 최종 프로젝트
 ├── requirements.txt       # 의존성 관리
-├── setup.sh              # 프로젝트 설정
-├── run.sh                # 실행 스크립트
-└── clean.sh              # 정리 스크립트
+├── setup.sh               # 프로젝트 설정
+├── run.sh                 # 실행 스크립트
+└── clean.sh               # 정리 스크립트
 ```
 
 ### 편의 스크립트
